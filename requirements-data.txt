@@ -1,0 +1,5 @@
+copernicusmarine==2.4.1
+numpy
+pandas
+xarray
+h5netcdf

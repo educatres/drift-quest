@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#06233b" />
+  <meta name="description" content="以真實洋流資料為基礎的國中海洋科學互動遊戲。調整月份、深度與海錨，讓科學漂流瓶從 A 地抵達 B 地。" />
+  <title>Drift Quest｜洋流漂流任務</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <noscript>
+    <div class="noscript">這個互動遊戲需要啟用 JavaScript。</div>
+  </noscript>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">🌊</div>
+      <div>
+        <h1>Drift Quest 洋流漂流任務</h1>
+        <p>Ocean Current Adventure</p>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <span id="dataBadge" class="data-badge" title="目前洋流資料來源">載入資料中…</span>
+      <button id="openGuideBtn" class="icon-button" type="button" aria-label="開啟遊戲說明">？</button>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section class="map-panel" aria-label="洋流地圖與漂流模擬">
+      <div id="map" role="application" aria-label="互動式海洋地圖"></div>
+
+      <div class="map-overlay map-status-card">
+        <div class="status-row">
+          <span class="status-label">任務時間</span>
+          <strong id="missionDay">第 0 天</strong>
+        </div>
+        <div class="status-row">
+          <span class="status-label">距離目標</span>
+          <strong id="distanceToGoal">— km</strong>
+        </div>
+        <div class="status-row">
+          <span class="status-label">漂流速度</span>
+          <strong id="bottleSpeed">— m/s</strong>
+        </div>
+      </div>
+
+      <div class="map-overlay map-legend" aria-label="圖例">
+        <div><span class="legend-arrow current"></span>洋流</div>
+        <div><span class="legend-arrow wind"></span>風力</div>
+        <div><span class="legend-dot bottle"></span>漂流瓶</div>
+        <div><span class="legend-dot target"></span>目標區</div>
+      </div>
+
+      <div class="map-overlay layer-controls">
+        <label><input id="showParticles" type="checkbox" checked /> 洋流粒子</label>
+        <label><input id="showArrows" type="checkbox" checked /> 方向箭頭</label>
+        <label><input id="showTyphoon" type="checkbox" checked /> 颱風路徑</label>
+      </div>
+
+      <div id="scienceTip" class="map-overlay science-tip" hidden>
+        <button id="closeScienceTip" type="button" aria-label="關閉提示">×</button>
+        <strong id="scienceTipTitle">科學提示</strong>
+        <p id="scienceTipText"></p>
+      </div>
+    </section>
+
+    <aside class="control-panel" aria-label="任務與漂流瓶控制台">
+      <section class="panel-section mission-section">
+        <div class="section-heading">
+          <div>
+            <span class="eyebrow">MISSION</span>
+            <h2>選擇關卡</h2>
+          </div>
+          <span id="missionDifficulty" class="difficulty">★☆☆</span>
+        </div>
+        <select id="missionSelect" class="full-control" aria-label="選擇關卡"></select>
+        <div class="mission-card">
+          <h3 id="missionTitle">載入中…</h3>
+          <p id="missionStory"></p>
+          <div class="mission-objectives">
+            <span><b>A</b><span id="startLabel">—</span></span>
+            <span class="route-line" aria-hidden="true"></span>
+            <span><b>B</b><span id="targetLabel">—</span></span>
+          </div>
+          <div class="mission-rules" id="missionRules"></div>
+        </div>
+      </section>
+
+      <section class="panel-section">
+        <div class="section-heading compact">
+          <div>
+            <span class="eyebrow">SETTINGS</span>
+            <h2>投放設定</h2>
+          </div>
+        </div>
+
+        <label class="control-group">
+          <span>出發月份</span>
+          <select id="monthSelect" class="full-control">
+            <option value="1">1 月｜冬季</option>
+            <option value="2">2 月｜冬季</option>
+            <option value="3">3 月｜春季</option>
+            <option value="4">4 月｜春季</option>
+            <option value="5">5 月｜春季</option>
+            <option value="6">6 月｜夏季</option>
+            <option value="7">7 月｜夏季</option>
+            <option value="8">8 月｜夏季</option>
+            <option value="9">9 月｜秋季</option>
+            <option value="10">10 月｜秋季</option>
+            <option value="11">11 月｜秋季</option>
+            <option value="12">12 月｜冬季</option>
+          </select>
+        </label>
+
+        <label class="control-group">
+          <span class="control-label-row"><span>漂流深度</span><output id="depthOutput">0 m</output></span>
+          <input id="depthRange" type="range" min="0" max="3" step="1" value="0" />
+          <div class="range-labels"><span>海面</span><span>10 m</span><span>30 m</span><span>50 m</span></div>
+        </label>
+
+        <label class="control-group">
+          <span class="control-label-row"><span>小帆面積</span><output id="sailOutput">20%</output></span>
+          <input id="sailRange" type="range" min="0" max="100" step="10" value="20" />
+          <small>帆越大，風對漂流瓶的影響越明顯。</small>
+        </label>
+
+        <div class="toggle-grid">
+          <button id="anchorBtn" class="toggle-button" type="button" aria-pressed="false">
+            <span aria-hidden="true">⚓</span>
+            <span><b>海錨</b><small>降低漂流速度</small></span>
+          </button>
+          <button id="animalBtn" class="toggle-button" type="button" aria-pressed="false" disabled>
+            <span id="animalIcon" aria-hidden="true">🐢</span>
+            <span><b id="animalLabel">動物夥伴</b><small id="animalHint">此關未開放</small></span>
+          </button>
+        </div>
+      </section>
+
+      <section class="panel-section play-section">
+        <div class="resource-row">
+          <span>探測器電量</span>
+          <div class="battery"><div id="batteryBar"></div></div>
+          <strong id="batteryText">100%</strong>
+        </div>
+
+        <div class="button-row primary-row">
+          <button id="startBtn" class="primary-button" type="button">投放漂流瓶</button>
+          <button id="pauseBtn" class="secondary-button" type="button" disabled>暫停</button>
+          <button id="resetBtn" class="secondary-button" type="button">重設</button>
+        </div>
+
+        <label class="control-group speed-control">
+          <span class="control-label-row"><span>模擬速度</span><output id="speedOutput">1×</output></span>
+          <input id="speedRange" type="range" min="1" max="4" value="1" step="1" />
+        </label>
+      </section>
+
+      <section class="panel-section learning-section">
+        <div class="section-heading compact">
+          <div>
+            <span class="eyebrow">SCIENCE LOG</span>
+            <h2>科學觀察</h2>
+          </div>
+          <span id="observationCount">0 / 3</span>
+        </div>
+        <ul id="observationList" class="observation-list">
+          <li>開始漂流後，系統會記錄重要現象。</li>
+        </ul>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="footer-note">
+    <span>本遊戲用於海洋科學教學，不可作為航海、救難或氣象決策依據。</span>
+    <a href="README.md">專案與資料說明</a>
+  </footer>
+
+  <dialog id="resultDialog" class="result-dialog">
+    <form method="dialog">
+      <button class="dialog-close" value="close" aria-label="關閉">×</button>
+      <div id="resultIcon" class="result-icon">🏁</div>
+      <span class="eyebrow">MISSION REPORT</span>
+      <h2 id="resultTitle">任務完成</h2>
+      <p id="resultSummary"></p>
+      <div class="score-grid">
+        <div><span>總分</span><strong id="resultScore">0</strong></div>
+        <div><span>漂流天數</span><strong id="resultDays">0</strong></div>
+        <div><span>最近距離</span><strong id="resultDistance">0 km</strong></div>
+      </div>
+      <div class="result-explanation">
+        <h3>為什麼會有這個結果？</h3>
+        <p id="resultExplanation"></p>
+      </div>
+      <div class="dialog-actions">
+        <button id="retryBtn" class="primary-button" value="close">再試一次</button>
+        <button id="nextMissionBtn" class="secondary-button" value="close">下一關</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="guideDialog" class="guide-dialog">
+    <form method="dialog">
+      <button class="dialog-close" value="close" aria-label="關閉">×</button>
+      <span class="eyebrow">HOW TO PLAY</span>
+      <h2>如何讓漂流瓶抵達目的地？</h2>
+      <div class="guide-grid">
+        <article><span>1</span><h3>觀察洋流</h3><p>箭頭方向代表水流方向，箭頭越長通常表示流速越快。</p></article>
+        <article><span>2</span><h3>選擇月份</h3><p>季風與海況會隨季節改變，同一地點可能出現不同漂流結果。</p></article>
+        <article><span>3</span><h3>調整深度</h3><p>不同深度的水流速度與方向可能不同，但調整深度會消耗電量。</p></article>
+        <article><span>4</span><h3>利用自然力量</h3><p>海錨、小帆、颱風外圍流與動物夥伴都能改變路線。</p></article>
+      </div>
+      <div class="guide-warning">
+        <b>科學提醒：</b>「搭乘海龜或鯨魚」是遊戲化表現。現實中不可觸摸、追逐或干擾野生動物。
+      </div>
+      <button class="primary-button guide-start" value="close">開始挑戰</button>
+    </form>
+  </dialog>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="js/missions.js"></script>
+  <script src="js/current-provider.js"></script>
+  <script src="js/current-layer.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

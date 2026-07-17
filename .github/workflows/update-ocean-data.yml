@@ -1,0 +1,93 @@
+name: Update Ocean Data
+
+on:
+  schedule:
+    - cron: "23 18 5 * *" # 每月 6 日 02:23（臺灣時間）
+  workflow_dispatch:
+    inputs:
+      data_year:
+        description: "Copernicus 洋流資料年份（留空為前一年）"
+        required: false
+        type: string
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ocean-data-update
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    env:
+      COPERNICUSMARINE_SERVICE_USERNAME: ${{ secrets.COPERNICUSMARINE_USERNAME }}
+      COPERNICUSMARINE_SERVICE_PASSWORD: ${{ secrets.COPERNICUSMARINE_PASSWORD }}
+      OCEAN_DATA_YEAR: ${{ inputs.data_year }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-data.txt
+
+      - name: Install data tools
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-data.txt
+
+      - name: Download real Copernicus currents
+        if: ${{ env.COPERNICUSMARINE_SERVICE_USERNAME != '' && env.COPERNICUSMARINE_SERVICE_PASSWORD != '' }}
+        run: python scripts/fetch_copernicus_currents.py
+
+      - name: Keep teaching currents when Secrets are missing
+        if: ${{ env.COPERNICUSMARINE_SERVICE_USERNAME == '' || env.COPERNICUSMARINE_SERVICE_PASSWORD == '' }}
+        run: echo "Copernicus Secrets are not configured; current-latest.json remains unchanged."
+
+      - name: Update NOAA IBTrACS tracks
+        run: python scripts/fetch_ibtracs.py
+
+      - name: Commit updated data
+        run: |
+          if git diff --quiet -- data/ocean data/typhoons; then
+            echo "No data changes to commit."
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add data/ocean data/typhoons
+            git commit -m "data: update ocean currents and typhoon tracks"
+            git push
+          fi
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v6
+
+      - name: Prepare static site
+        run: |
+          mkdir -p _site
+          rsync -a ./ _site/ \
+            --exclude '.git/' \
+            --exclude '.github/' \
+            --exclude '_site/' \
+            --exclude 'scripts/' \
+            --exclude '*.zip'
+          touch _site/.nojekyll
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Deploy updated site
+        id: deployment
+        uses: actions/deploy-pages@v5
